@@ -1,0 +1,4 @@
+run "sh deploy.sh" to update web server with new code
+
+To trigger a manual update via webhook:
+curl -X POST https://edit-price.fly.dev/webhook
