@@ -21,6 +21,7 @@ EXTERNAL_API_TOKEN = os.getenv("EXTERNAL_API_TOKEN")
 
 SKU_FILE = "sku.txt"
 FORMULA_FILE = "formula.txt"
+UNDER5_FORMULA_FILE = "under5.txt"
 LOG_FILE = "price_updates.log"
 
 # Configure logging
@@ -271,11 +272,28 @@ def read_formula(filename):
         logging.error(f"ERROR reading formula from {filename}: {e}")
         raise
 
-def calculate_price(formula, x):
+def read_under5_formula(filename):
+    try:
+        with open(filename, 'r') as f:
+            formula = f.read().strip()
+        logging.info(f"Successfully read under5 formula from {filename}: {formula}")
+        return formula
+    except Exception as e:
+        logging.error(f"ERROR reading under5 formula from {filename}: {e}")
+        return None
+
+def calculate_price(formula, x, under5_formula=None):
     # x is the price from the external API
     # WARNING: eval can be dangerous if the formula file is not trusted!
     import math
-    return eval(formula, {"x": x, "math": math, "__builtins__": {}})
+    
+    # If under5_formula is provided and price is under $5, use that formula
+    if under5_formula and x < 5:
+        logging.info(f"Price {x} is under $5, using under5 formula: {under5_formula}")
+        return eval(under5_formula, {"x": x, "math": math, "__builtins__": {}})
+    else:
+        logging.info(f"Price {x} is $5 or above, using regular formula: {formula}")
+        return eval(formula, {"x": x, "math": math, "__builtins__": {}})
 
 def run_update():
     try:
@@ -293,6 +311,13 @@ def run_update():
 
         formula = read_formula(FORMULA_FILE)
         logging.info(f"Using formula: {formula}")
+
+        # Read under5 formula if it exists
+        under5_formula = read_under5_formula(UNDER5_FORMULA_FILE)
+        if under5_formula:
+            logging.info(f"Using under5 formula: {under5_formula}")
+        else:
+            logging.info("No under5 formula found, will use regular formula for all prices")
 
         updated_count = 0
         skipped_count = 0
@@ -315,7 +340,7 @@ def run_update():
                 skipped_count += 1
                 continue
             try:
-                new_price = calculate_price(formula, external_price)
+                new_price = calculate_price(formula, external_price, under5_formula)
             except Exception as e:
                 logging.error(f"  Error evaluating formula for SKU {sku}: {e}")
                 error_count += 1
@@ -399,7 +424,8 @@ def update_specific_sku(sku):
         
         # Calculate new price
         formula = read_formula(FORMULA_FILE)
-        new_price = calculate_price(formula, external_price)
+        under5_formula = read_under5_formula(UNDER5_FORMULA_FILE)
+        new_price = calculate_price(formula, external_price, under5_formula)
         
         # Find and update Shopify variant
         variant = find_shopify_variant_by_sku(sku)
