@@ -1,9 +1,12 @@
-# Use the official Python image.
-FROM python:3.11-slim
+# Use Alpine Linux with Python to avoid mise tool
+FROM python:3.11-alpine
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev
 
 # Set work directory
 WORKDIR /app
