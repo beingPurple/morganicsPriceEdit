@@ -5,6 +5,8 @@ FROM ubuntu:22.04
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 ENV DEBIAN_FRONTEND=noninteractive
+ENV MISE_VERBOSE=1
+ENV MISE_PYTHON_COMPILE=1
 
 # Install Python and pip
 RUN apt-get update && apt-get install -y \
