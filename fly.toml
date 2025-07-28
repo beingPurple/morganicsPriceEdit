@@ -6,6 +6,9 @@
 app = 'edit-price'
 primary_region = 'iad'
 
+[env]
+  MISE_PYTHON_COMPILE = "1"
+
 [http_service]
   internal_port = 8080
   force_https = true
