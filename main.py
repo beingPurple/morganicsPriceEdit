@@ -19,20 +19,24 @@ SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 EXTERNAL_API_URL = os.getenv("EXTERNAL_API_URL", "https://api.jdsapp.com/get-product-details-by-skus")
 EXTERNAL_API_TOKEN = os.getenv("EXTERNAL_API_TOKEN")
 
-SKU_FILE = "sku.txt"
-FORMULA_FILE = "formula.txt"
-UNDER5_FORMULA_FILE = "under5.txt"
-LOG_FILE = "price_updates.log"
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SKU_FILE = os.path.join(SCRIPT_DIR, "sku.txt")
+FORMULA_FILE = os.path.join(SCRIPT_DIR, "formula.txt")
+UNDER5_FORMULA_FILE = os.path.join(SCRIPT_DIR, "under5.txt")
+LOG_FILE = os.path.join(SCRIPT_DIR, "price_updates.log")
 
 # Configure logging
 def setup_logging():
     """Setup logging to both file and console"""
     # Create logs directory if it doesn't exist
-    os.makedirs('logs', exist_ok=True)
+    logs_dir = os.path.join(SCRIPT_DIR, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
     
     # Create a timestamp for the log file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"logs/price_updates_{timestamp}.log"
+    log_filename = os.path.join(logs_dir, f"price_updates_{timestamp}.log")
     
     # Configure logging
     logging.basicConfig(
@@ -288,12 +292,12 @@ def calculate_price(formula, x, under5_formula=None):
     import math
     
     # If under5_formula is provided and price is under $5, use that formula
-    if under5_formula and x < 5:
+    if under5_formula and float(x) < 5: # Ensure x is treated as a float for comparison
         logging.info(f"Price {x} is under $5, using under5 formula: {under5_formula}")
-        return eval(under5_formula, {"x": x, "math": math, "__builtins__": {}})
+        return eval(under5_formula, {"x": float(x), "math": math, "__builtins__": {}})
     else:
         logging.info(f"Price {x} is $5 or above, using regular formula: {formula}")
-        return eval(formula, {"x": x, "math": math, "__builtins__": {}})
+        return eval(formula, {"x": float(x), "math": math, "__builtins__": {}})
 
 def run_update():
     try:
@@ -339,8 +343,18 @@ def run_update():
                 logging.warning(f"  No lessThanCasePrice for SKU {sku}.")
                 skipped_count += 1
                 continue
+            
+            # Convert external price to float, handling string values
             try:
-                new_price = calculate_price(formula, external_price, under5_formula)
+                external_price_float = float(external_price)
+                logging.info(f"  External price for {sku}: {external_price} (converted to {external_price_float})")
+            except (ValueError, TypeError) as e:
+                logging.error(f"  Error converting price '{external_price}' to float for SKU {sku}: {e}")
+                error_count += 1
+                continue
+            
+            try:
+                new_price = calculate_price(formula, external_price_float, under5_formula)
             except Exception as e:
                 logging.error(f"  Error evaluating formula for SKU {sku}: {e}")
                 error_count += 1
@@ -422,10 +436,20 @@ def update_specific_sku(sku):
         if external_price is None:
             return jsonify({"error": f"No lessThanCasePrice for SKU {sku}"}), 404
         
+        # Convert external price to float, handling string values
+        try:
+            external_price_float = float(external_price)
+            logging.info(f"External price for {sku}: {external_price} (converted to {external_price_float})")
+        except (ValueError, TypeError) as e:
+            return jsonify({"error": f"Error converting price '{external_price}' to float for SKU {sku}: {e}"}), 400
+        
         # Calculate new price
         formula = read_formula(FORMULA_FILE)
         under5_formula = read_under5_formula(UNDER5_FORMULA_FILE)
-        new_price = calculate_price(formula, external_price, under5_formula)
+        try:
+            new_price = calculate_price(formula, external_price_float, under5_formula)
+        except Exception as e:
+            return jsonify({"error": f"Error evaluating formula for SKU {sku}: {e}"}), 400
         
         # Find and update Shopify variant
         variant = find_shopify_variant_by_sku(sku)
