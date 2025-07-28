@@ -1,28 +1,28 @@
-# Use Ubuntu with Python to avoid mise tool issues
-FROM ubuntu:22.04
+# Multi-stage build to avoid mise tool issues
+FROM python:3.11.9-slim as builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV DEBIAN_FRONTEND=noninteractive
-ENV MISE_VERBOSE=1
-ENV MISE_PYTHON_COMPILE=1
 
-# Install Python and pip
-RUN apt-get update && apt-get install -y \
-    python3.11 \
-    python3.11-pip \
-    python3.11-venv \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -s /usr/bin/python3.11 /usr/bin/python \
-    && ln -s /usr/bin/pip3.11 /usr/bin/pip
-
-# Set work directory
-WORKDIR /app
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install dependencies
 COPY requirements.txt /app/
+WORKDIR /app
 RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Final stage
+FROM python:3.11.9-slim
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set work directory
+WORKDIR /app
 
 # Copy project
 COPY . /app/
